@@ -1,0 +1,50 @@
+name: Publicar Ritmo en GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Comprobar datos y calendario
+        run: npm test
+      - name: Preparar únicamente los archivos web
+        run: |
+          mkdir -p _site
+          cp index.html style.css app.js model.js _site/
+      - name: Preparar GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Guardar web para publicación
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publicar web
+        id: deployment
+        uses: actions/deploy-pages@v4

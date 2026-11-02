@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f5f5ef">
+  <title>Ritmo · Tu entrenamiento, con perspectiva</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#hoy"><span class="brand-icon">r.</span>ritmo<span class="brand-dot">●</span></a>
+    <p class="eyebrow">TU ESPACIO DE ENTRENAMIENTO</p>
+    <nav aria-label="Principal">
+      <a href="#hoy" data-view="hoy"><span>◉</span> Hoy</a>
+      <a href="#semana" data-view="semana"><span>▦</span> Mi semana</a>
+      <a href="#historial" data-view="historial"><span>↗</span> Historial</a>
+    </nav>
+    <div class="sidebar-note"><span class="small-dot"></span> Paso a paso, semana a semana.<p>El progreso también es saber descansar.</p></div>
+    <div class="storage"><strong>Tu espacio personal</strong><p>Datos guardados en este navegador.</p><button id="export" class="text-btn">Descargar copia ↗</button><label class="text-btn import-label">Restaurar copia<input id="import" type="file" accept="application/json" hidden></label></div>
+  </aside>
+  <main>
+    <header class="topbar"><span>MI CUADERNO DE ENTRENAMIENTO</span><span id="today-label"></span></header>
+    <div id="app"></div>
+    <footer>Hecho para seguir tu propio ritmo.<span>Running + fuerza + recuperación</span></footer>
+  </main>
+  <dialog id="editor"><form id="session-form"><div id="form-content"></div></form></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
