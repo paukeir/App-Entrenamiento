@@ -20,6 +20,8 @@ Sube el proyecto completo a la rama `main` de `paukeir/App-Entrenamiento`. En Gi
 
 La URL prevista es `https://paukeir.github.io/App-Entrenamiento/`; confirma el enlace y el resultado de la publicación en GitHub antes de usarla. Preparar el workflow localmente no sube código ni activa Pages.
 
+En iPhone, abre la web en Safari y elige **Compartir → Añadir a pantalla de inicio**. El icono usa el logo `r.` de Ritmo, en PNG opaco de 180×180. Si el acceso directo ya existía, puede ser necesario eliminarlo y volver a añadirlo para renovar el icono que iOS guarda en caché. No borres los datos de Safari; puedes descargar una copia de tus reportes antes de renovar el acceso directo.
+
 Pages sirve la app como web estática: no incorpora inicio de sesión ni sincronización entre dispositivos. Los registros iniciales incluidos en `model.js` son accesibles a quienes puedan abrir la web. Los reportes nuevos se guardan únicamente en el navegador donde se introducen.
 
 ## Funciones

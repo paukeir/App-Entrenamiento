@@ -27,7 +27,7 @@ jobs:
       - name: Preparar únicamente los archivos web
         run: |
           mkdir -p _site
-          cp index.html style.css app.js model.js _site/
+          cp index.html style.css app.js model.js apple-touch-icon.png _site/
       - name: Preparar GitHub Pages
         uses: actions/configure-pages@v5
       - name: Guardar web para publicación
