@@ -1,42 +1,48 @@
 # Ritmo
 
-Primera versión de una app personal de entrenamiento, en español y adaptable al móvil. JavaScript nativo, sin dependencias de instalación. Requiere Python 3 y Node.js 18+ para las pruebas.
+App personal de entrenamiento en español, adaptable a móvil. JavaScript nativo sin dependencias de ejecución. Python 3 para el servidor local y Node.js 18+ para pruebas/build (CI usa Node 24).
 
-## Desarrollo
-
-Desde `/workspace/App-Entrenamiento`:
+## Desarrollo y publicación
 
 ```sh
-npm start
-# Servidor HTTP en el puerto 5173
-npm test
+npm ci           # herramientas de prueba (no dependencias de la web)
+npm start        # servidor en 5173
+npm test         # calendario, datos, reglas y sincronización con transporte simulado
+npm run build    # genera únicamente la web pública en _site
+npm run test:browser # con el servidor ya activo y Chromium instalado
 ```
 
-En el entorno cloud usa el checkout existente; no hace falta crear un worktree. Los procesos deben arrancarse de nuevo en cada sesión. Para comprobar el servidor internamente: `curl --fail http://127.0.0.1:5173/`.
+Usa el checkout existente en `/workspace/App-Entrenamiento`; no hace falta crear un worktree. Los procesos se vuelven a iniciar en cada tarea. Comprueba el servidor internamente con `curl --fail http://127.0.0.1:5173/`.
 
-## Publicar con GitHub Pages
+Las pruebas de navegador usan Chromium (`/usr/bin/chromium`, configurable con `CHROMIUM_PATH`) y dos contextos aislados con una API simulada. `RITMO_TEST_URL` permite probar otro servidor. No se conectan a cuentas reales.
 
-Sube el proyecto completo a la rama `main` de `paukeir/App-Entrenamiento`. En GitHub, abre **Settings → Pages → Build and deployment → Source** y selecciona **GitHub Actions**. El workflow `.github/workflows/pages.yml` ejecuta las pruebas y publica solo `index.html`, `style.css`, `app.js` y `model.js`. Si el push ocurrió antes de activar Pages, ejecuta manualmente **Actions → Publicar Ritmo en GitHub Pages → Run workflow**.
+El workflow `.github/workflows/pages.yml` ejecuta las pruebas, construye `_site` y lo publica con GitHub Pages al subir a `main`. En GitHub, Settings → Pages → Source debe ser GitHub Actions. La web es https://paukeir.github.io/App-Entrenamiento/ . No se publica el SQL ni los tests. Configuración de cuenta y base de datos: [supabase/README.md](supabase/README.md).
 
-La URL prevista es `https://paukeir.github.io/App-Entrenamiento/`; confirma el enlace y el resultado de la publicación en GitHub antes de usarla. Preparar el workflow localmente no sube código ni activa Pages.
+En iPhone, Safari → Compartir → Añadir a pantalla de inicio. Icono `r.` opaco de 180×180. Si iOS conserva el anterior, vuelve a añadir el acceso directo sin borrar los datos de Safari.
 
-En iPhone, abre la web en Safari y elige **Compartir → Añadir a pantalla de inicio**. El icono usa el logo `r.` de Ritmo, en PNG opaco de 180×180. Si el acceso directo ya existía, puede ser necesario eliminarlo y volver a añadirlo para renovar el icono que iOS guarda en caché. No borres los datos de Safari; puedes descargar una copia de tus reportes antes de renovar el acceso directo.
+## Flujo de entrenamiento
 
-Pages sirve la app como web estática: no incorpora inicio de sesión ni sincronización entre dispositivos. Los registros iniciales incluidos en `model.js` son accesibles a quienes puedan abrir la web. Los reportes nuevos se guardan únicamente en el navegador donde se introducen.
+- Hoy, semana, historial y objetivo/carreras.
+- Plan previsto separado de reporte realizado; running, gimnasio y descansos.
+- El martes 3/11/2026 incluye los siete ejercicios reales aportados en el chat, con pesos y repeticiones en rango, calentamiento e intensidad.
+- La captura del 2–8 de noviembre se incorpora como propuesta que el usuario puede aprobar. Sábado descanso; 5K opcional y rodaje alternativo de 7–9 km el domingo. Confirmar la 5K en Mi objetivo cambia la sesión prevista del domingo. El viernes no tiene ejercicios acordados: se muestra una referencia del historial, pero hace falta editar/guardar su detalle para usarlo en continuidad automática.
+- Reportes por serie, calentamiento realizado, sensaciones, esfuerzo, motivo de cambios y métricas de running. Un reporte por día.
+- Fotos desplegables de los ejercicios, con dos posiciones y aviso sobre variantes de máquina/técnica. Fuente y licencia en `assets/exercises/ATTRIBUTION.md`.
+- Referencias de gimnasio tomadas del plan específico; si falta, de la última sesión anterior al día, evitando usar una rutina futura como referencia.
+- Los datos iniciales del gimnasio del 27/10 y la plancha de 3×60 s se conservan. Las migraciones no sustituyen planes ni duraciones ya editados.
 
-## Funciones
+## Continuidad automática sin IA
 
-- Hoy, calendario con navegación semanal e historial.
-- Plantilla semanal: lunes y miércoles descanso, martes gimnasio, jueves y sábado running, viernes gimnasio y domingo tirada larga. El reparto es editable; no prescribe kilómetros, intensidad ni progresiones.
-- Plan y reporte separados. Reportes completados, parciales o no realizados; sensaciones, esfuerzo percibido y motivo de cambios.
-- Running con métricas y parciales transcritos manualmente.
-- Gimnasio con referencia anterior, calentamiento realizado y peso/repeticiones por serie; se pueden añadir o quitar series. Para la plancha se registran segundos.
-- Guardado local, exportación/restauración JSON y resumen semanal para compartir.
+Se ejecuta al guardar o abrir la app; no requiere mantener el chat ni hacer llamadas de IA. No hay ejecución en segundo plano con la app cerrada. El perfil permite activar/desactivar la continuidad y confirmar o eliminar carreras.
 
-Los ejemplos iniciales son los datos aportados por el usuario: carrera del 29/10 (año 2026 asumido y editable) y gimnasio del 27/10/2026 con plancha de 3×60 segundos, confirmados por el usuario. La corrección se aplica una sola vez al registro inicial de copias anteriores, conservando las fechas y duraciones ya editadas; si el 27/10 ya está ocupado, no se fuerza una fecha duplicada. La observación «puedo subirle» no cambia las cargas.
+Para generar la siguiente semana necesita una semana completa definida/aprobada, todos los reportes de sesiones previstos (completados, parciales o no realizados), distancias de running y ejercicios de gimnasio. Si falta información, lo indica y no inventa una semana.
 
-## Alcance y datos
+Las reglas conservan la distribución de la semana de origen y respetan sus descansos. Mantienen las cargas salvo fatiga, esfuerzo ≥8/10 o incumplimiento: reducen running un 20% y series de fuerza. Con molestias se pausa. Dos semanas completas de sensaciones favorables y esfuerzo ≤6/10 permiten hasta un 5% de distancia adicional solo si todos los rodajes eran suaves y no hay carrera confirmada en las próximas dos semanas; no se aumenta además la intensidad. Nunca se suben automáticamente los pesos del gimnasio. Una carrera confirmada en domingo reduce los rodajes previos un 35% e incorpora su distancia real. Una carrera en otro día o varias carreras requieren ajustar la distribución manualmente.
 
-Los datos viven en `localStorage` bajo `ritmo.v1`, en este navegador y origen. No hay cuenta, servidor de datos, sincronización ni conexión con Strava o IA/OCR. Descarga copias antes de borrar datos del navegador o cambiar de dispositivo. La restauración sustituye el conjunto de datos tras confirmación. Esta versión admite un reporte por día. Las fuentes usan la tipografía del sistema, sin peticiones externas.
+La semana generada se marca como propuesta automática y explica su motivo. No reemplaza una semana que ya tenga algún plan o reporte, ni genera semanas en cascada. Las reglas son conservadoras y limitadas; no reproducen el razonamiento de las conversaciones previas ni sustituyen una planificación individual profesional.
 
-La app no genera planes automáticos ni interpreta una FC aislada como evaluación de recuperación. El resumen permite revisar los reportes antes de decidir la siguiente planificación.
+## Guardado y sincronización
+
+Sin Supabase configurado, los datos se guardan solo en este navegador (`ritmo.v1`). El botón de cuenta indica que la conexión está pendiente. Con Supabase, al entrar con la misma cuenta en ambos dispositivos se comprueban cambios cada 10 segundos, al guardar y al volver a la app. Hay combinación de cambios independientes, protección frente a escrituras obsoletas y resolución explícita de conflictos. Los cambios sin red quedan pendientes. No se actualiza un formulario mientras lo estás editando.
+
+Exportar/restaurar JSON conserva los datos; restaurar sustituye el historial tras confirmación. Descarga copias antes de borrar los datos del navegador. La app no conecta con Strava ni lee capturas automáticamente: las métricas se transcriben manualmente. La configuración pública de Supabase no contiene claves secretas; no pongas contraseñas ni claves de IA en el frontend.

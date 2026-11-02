@@ -1,3 +1,4 @@
+import {agreedGymDate,agreedGym,initialProfile,proposedWeek} from './training-seed.js';
 export const KEY = 'ritmo.v1';
 export const gym = [
   ['Jalón al pecho','1 × 12 · 20 kg',45,3,12,'total',''],
@@ -13,7 +14,7 @@ export function localDate(date=new Date()) { return new Intl.DateTimeFormat('sv-
 export function addDays(iso,days){const d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);}
 export function monday(iso){const day=new Date(iso+'T12:00:00Z').getUTCDay();return addDays(iso,-((day+6)%7));}
 export function weekDates(iso){const start=monday(iso);return Array.from({length:7},(_,i)=>addDays(start,i));}
-export function initialData(){return {version:1,plans:{},reports:[
+export function initialData(){return {version:1,plans:{...structuredClone(proposedWeek),[agreedGymDate]:structuredClone(agreedGym)},profile:structuredClone(initialProfile),reports:[
   {id:'run-oct29',date:'2026-10-29',type:'run',title:'Vuelta tras la media maratón',status:'completed',distance:5.11,duration:'36:55',pace:'7:13',heartRate:144,calories:383,relativeEffort:37,notes:'Primer entrenamiento reportado tras la media maratón. Datos transcritos de la captura de Strava. Año asumido: 2026.',feeling:'',rpe:null,cadence:null,splits:'',reason:''},
   {id:'gym-last',date:'2026-10-27',type:'gym',title:'Última sesión de gimnasio',status:'completed',notes:'Sesión del 27/10. Sensaciones no indicadas. Remo y press de pecho: «puedo subirle». Plancha confirmada: 3×60 segundos.',feeling:'',rpe:null,reason:'',exercises:gym.map(e=>({...e,actualWarmup:e.warmup,actualSets:Array.from({length:e.sets},()=>({weight:e.weight,reps:e.reps,seconds:e.unit==='segundos'?60:null}))}))}
 ]};}
@@ -34,8 +35,33 @@ export function correctInitialGym(data){
   next.corrections=[...(next.corrections||[]),'gym-2026-10-27'];
   return next;
 }
+export function upgradeData(data){
+  const next=structuredClone(correctInitialGym(data));
+  if(!next.profile)next.profile=structuredClone(initialProfile);
+  if(next.corrections?.includes('week-2026-11-02'))return next;
+  if(!next.plans[agreedGymDate]&&!reportFor(next,agreedGymDate))next.plans[agreedGymDate]=structuredClone(agreedGym);
+  if(!next.profile)next.profile=structuredClone(initialProfile);
+  for(const [date,p] of Object.entries(proposedWeek))if(!next.plans[date]&&!reportFor(next,date))next.plans[date]=structuredClone(p);
+  if(!next.profile.events.some(e=>e.date==='2026-12-13'))next.profile.events.push(structuredClone(initialProfile.events[2]));
+  next.corrections=[...(next.corrections||[]),'agreed-2026-11-03','week-2026-11-02'];
+  return next;
+}
+export function gymReference(data,date){
+  const planned=planFor(data,date);
+  if(planned.exercises?.length)return structuredClone(planned.exercises);
+  const last=data.reports.filter(r=>r.type==='gym'&&r.status!=='skipped'&&r.date&&r.date<date&&r.exercises?.length).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  return last?last.exercises.map(e=>{
+    const done=e.actualSets.filter(s=>e.unit==='segundos'?s.seconds!=null:s.reps!=null&&s.weight!=null);
+    const recent=done.at(-1);
+    return {...e,sets:done.length||e.sets,weight:recent?.weight??e.weight,reps:recent?.reps??e.reps,durationSeconds:recent?.seconds??e.durationSeconds};
+  }):structuredClone(gym);
+}
 export function defaultPlan(date){const day=new Date(date+'T12:00:00Z').getUTCDay();return ({1:{type:'rest',title:'Descanso',details:'Trabajo e italiano. Un día para recuperar.'},2:{type:'gym',title:'Fuerza · gimnasio',details:'Plantilla basada en tu última sesión. Revisa las cargas antes de entrenar.'},3:{type:'rest',title:'Descanso',details:'Trabajo e italiano. Un día para recuperar.'},4:{type:'run',title:'Running · por definir',details:'Define distancia, intensidad y objetivo de esta semana.'},5:{type:'gym',title:'Fuerza · gimnasio',details:'Distribución orientativa. Puedes mover esta sesión.'},6:{type:'run',title:'Running · por definir',details:'Define distancia, intensidad y objetivo de esta semana.'},0:{type:'run',title:'Tirada larga · por definir',details:'Domingo habitual. Ajusta la distancia según recuperación y planificación.'}})[day];}
-export function planFor(data,date){return data.plans[date]||defaultPlan(date);}
+export function planFor(data,date){
+ const p=data.plans[date]||defaultPlan(date);
+ if(p.optionalRace&&data.profile?.events.some(e=>e.date===date&&e.confirmed))return {...p,distanceKm:5,maxDistanceKm:null,intensity:'carrera',title:'5K · controlada',details:'Participación confirmada: 5 km de forma controlada, sin buscar récord. Calienta 10–15 min.'};
+ return p;
+}
 export function reportFor(data,date){return data.reports.find(r=>r.date===date);}
 export function validateData(data){
   if(!data||data.version!==1||!data.plans||typeof data.plans!=='object'||Array.isArray(data.plans)||!Array.isArray(data.reports))throw Error('La copia no tiene un formato compatible.');
@@ -43,6 +69,21 @@ export function validateData(data){
   const dateOk=d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&!isNaN(Date.parse(d+'T12:00:00Z'))&&new Date(d+'T12:00:00Z').toISOString().slice(0,10)===d;
   const types=['run','gym','rest'];
   for(const [date,p] of Object.entries(data.plans))if(!dateOk(date)||!p||!types.includes(p.type)||typeof p.title!=='string'||typeof p.details!=='string')throw Error('Hay un día del plan no válido.');
+  for(const p of Object.values(data.plans)){
+    if(p.distanceKm!=null&&(!Number.isFinite(p.distanceKm)||p.distanceKm<=0))throw Error('Distancia prevista no válida.');
+    if(p.maxDistanceKm!=null&&(!Number.isFinite(p.maxDistanceKm)||p.maxDistanceKm<p.distanceKm))throw Error('Rango de distancia no válido.');
+    if(p.exercises!=null){if(!Array.isArray(p.exercises))throw Error('Ejercicios previstos no válidos.');for(const e of p.exercises){
+      if(!e||typeof e.name!=='string'||typeof e.unit!=='string'||typeof e.note!=='string'||typeof e.warmup!=='string'||!Number.isInteger(e.sets)||e.sets<1||e.sets>100)throw Error('Ejercicio previsto no válido.');
+      for(const k of ['weight','reps','maxWeight','maxReps','durationSeconds','maxDurationSeconds'])if(e[k]!=null&&(!Number.isFinite(e[k])||e[k]<0))throw Error('Objetivo de ejercicio no válido.');
+      for(const [min,max] of [['weight','maxWeight'],['reps','maxReps'],['durationSeconds','maxDurationSeconds']])if(e[max]!=null&&e[min]!=null&&e[max]<e[min])throw Error('Rango de ejercicio no válido.');
+    }}
+  }
+  if(data.profile!=null){
+    const p=data.profile;
+    if(typeof p.objective!=='string'||typeof p.context!=='string'||typeof p.automaticPlanning!=='boolean'||!Array.isArray(p.events))throw Error('Perfil de entrenamiento no válido.');
+    for(const e of p.events)if(!e||!dateOk(e.date)||typeof e.name!=='string'||typeof e.confirmed!=='boolean'||!Number.isFinite(e.distanceKm)||e.distanceKm<=0)throw Error('Carrera no válida.');
+  }
+  if(data.planningLog!=null&&(!Array.isArray(data.planningLog)||data.planningLog.some(e=>!e||!dateOk(e.week)||!dateOk(e.basedOnWeek)||typeof e.reason!=='string')))throw Error('Resumen de planificación no válido.');
   const ids=new Set(),dates=new Set();
   for(const r of data.reports){
     if(!r||typeof r.id!=='string'||ids.has(r.id)||!(r.date===''||dateOk(r.date))||!types.includes(r.type)||typeof r.title!=='string'||!['completed','partial','skipped'].includes(r.status))throw Error('Hay un reporte no válido.');
@@ -52,7 +93,7 @@ export function validateData(data){
     if(r.exercises!=null){if(!Array.isArray(r.exercises))throw Error('Ejercicios no válidos.');for(const e of r.exercises){if(!e||typeof e.name!=='string'||typeof e.warmup!=='string'||typeof e.unit!=='string'||typeof e.note!=='string'||!Array.isArray(e.actualSets)||typeof e.actualWarmup!=='string')throw Error('Ejercicio no válido.');for(const s of e.actualSets)for(const k of ['weight','reps','seconds'])if(s[k]!=null&&(!Number.isFinite(s[k])||s[k]<0))throw Error('Serie no válida.');}}
   }
   for(const r of data.reports)for(const e of r.exercises||[]){
-    for(const key of ['weight','sets','reps'])if(e[key]!=null&&(!Number.isFinite(e[key])||e[key]<0))throw Error('Referencia de ejercicio no válida.');
+    for(const key of ['weight','sets','reps','maxWeight','maxReps','durationSeconds','maxDurationSeconds'])if(e[key]!=null&&(!Number.isFinite(e[key])||e[key]<0))throw Error('Referencia de ejercicio no válida.');
     if(!Number.isInteger(e.sets)||e.sets<1||e.sets>100||e.actualSets.length>100)throw Error('Número de series no válido.');
   }
   return data;

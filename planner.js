@@ -1,0 +1,82 @@
+import { addDays, monday, weekDates, planFor, reportFor, validateData } from './model.js';
+
+const pending = plan => /por definir|pendiente de plan/i.test(plan.title);
+export function planningReadiness(data, sourceDate) {
+  const dates = weekDates(sourceDate);
+  const plans = dates.map(date => planFor(data, date));
+  if (!data.profile?.automaticPlanning) return { ready: false, reason: 'La continuidad automática está desactivada.' };
+  if (plans.some(p => p.source === 'draft')) return { ready: false, reason: 'Revisa y aprueba la primera semana antes de usarla como base automática.' };
+  if (plans.some((p, i) => p.type !== 'rest' && (!data.plans[dates[i]] || pending(p)))) return { ready: false, reason: 'Falta el plan completo de esta semana. Completa los días pendientes para tener una base real.' };
+  if (plans.some((p, i) => p.type !== 'rest' && !reportFor(data, dates[i]))) return { ready: false, reason: 'Registra cada sesión prevista como completada, parcial o no realizada. Después se preparará la siguiente semana.' };
+  const reports = data.reports.filter(r => dates.includes(r.date));
+  if (reports.some(r => r.feeling === 'Molestias')) return { ready: false, reason: 'Has registrado molestias. Revisa la recuperación y ajusta el plan antes de continuar automáticamente.' };
+  if (plans.some(p => p.type === 'run' && !(p.distanceKm > 0))) return { ready: false, reason: 'Faltan distancias previstas de running. No se inventarán kilómetros para la próxima semana.' };
+  if (plans.some(p => p.type === 'gym' && !p.exercises?.length)) return { ready: false, reason: 'Faltan los ejercicios previstos de una sesión de gimnasio.' };
+  return { ready: true, reason: 'Base completa. Se puede preparar la siguiente semana.' };
+}
+
+function goodWeek(data, start) {
+  const dates = weekDates(start);
+  const sessions = dates.filter(d => planFor(data, d).type !== 'rest');
+  return sessions.length >= 5 && sessions.every(date => {
+    const r = reportFor(data, date);
+    return data.plans[date] && r?.type === planFor(data,date).type && (r.type !== 'run' || r.distance >= planFor(data,date).distanceKm * 0.95) && r?.status === 'completed' && ['Bien', 'Muy bien', 'Normal'].includes(r.feeling) && r.rpe != null && r.rpe <= 6;
+  });
+}
+
+export function prepareNextWeek(data, sourceDate) {
+  const readiness = planningReadiness(data, sourceDate);
+  if (!readiness.ready) return { data, ...readiness, generated: false };
+  const source = weekDates(sourceDate), target = weekDates(addDays(source[0], 7));
+  if (target.some(date => data.plans[date] || reportFor(data, date))) return { data, generated: false, reason: 'La siguiente semana ya tiene planes o reportes. Se conservan tus cambios.' };
+  const reports = data.reports.filter(r => source.includes(r.date));
+  const fatigue = reports.some(r => r.feeling === 'Cansado' || r.rpe >= 8 || r.status !== 'completed');
+  const events = (data.profile.events || []).filter(e => e.confirmed && e.date >= target[0] && e.date <= target[6]);
+  if (events.length > 1 || events.some(e => e.date !== target[6])) return { data, generated: false, reason: 'La distribución de carreras requiere una revisión: el automatismo actual contempla una carrera en domingo.' };
+  const nearbyRace = (data.profile.events || []).some(e => e.confirmed && e.date >= target[0] && e.date <= addDays(target[6], 7));
+  const progress = !fatigue && !nearbyRace && source.filter(d => planFor(data, d).type === 'run').every(d => planFor(data, d).intensity === 'suave') && goodWeek(data, source[0]) && goodWeek(data, addDays(source[0], -7));
+  const factor = events.length ? 0.65 : fatigue ? 0.8 : progress ? 1.05 : 1;
+  const reason = events.length ? 'Semana de carrera: se reduce un 35% el volumen de los rodajes previos y se evita intensidad adicional.' : fatigue ? 'Fatiga, esfuerzo alto o sesión incompleta: volumen de running reducido un 20%.' : progress ? 'Dos semanas completas con sensaciones favorables y esfuerzo ≤6/10: aumento máximo del 5% en distancia, manteniendo el esfuerzo.' : 'Se mantiene la carga: todavía no hay dos semanas completas de datos favorables para subirla.';
+  const next = structuredClone(data);
+  const easyReference = source.map(date => planFor(data, date)).filter(p => p.type === 'run' && p.intensity !== 'carrera' && p.distanceKm > 0);
+  if (source.some(date => planFor(data, date).intensity === 'carrera') && !easyReference.length) return { data, generated: false, reason: 'Falta un rodaje de referencia para volver a entrenar después de la carrera.' };
+  target.forEach((date, i) => {
+    const previous = planFor(data, source[i]);
+    const plan = { ...structuredClone(previous), source: 'rules', basedOnWeek: source[0], rationale: reason };
+    delete plan.optionalRace;
+    if (previous.sessionInstructions) plan.details = previous.sessionInstructions;
+    if (previous.optionalRace || previous.intensity === 'carrera') {
+      plan.title = 'Rodaje suave · recuperación'; plan.intensity = 'suave';
+      if (previous.intensity === 'carrera') { plan.distanceKm = Math.min(...easyReference.map(p => p.distanceKm)); plan.maxDistanceKm = null; }
+      plan.details = 'Rodaje cómodo. Se usa una distancia de rodaje previa como referencia; la carrera anterior no se repite automáticamente.';
+    }
+    if (plan.type === 'run') {
+      plan.distanceKm = (progress?Math.floor(plan.distanceKm * factor * 10 + 1e-8):Math.round(plan.distanceKm * factor * 10)) / 10;
+      if (plan.maxDistanceKm) plan.maxDistanceKm = (progress?Math.floor(plan.maxDistanceKm * factor * 10 + 1e-8):Math.round(plan.maxDistanceKm * factor * 10)) / 10;
+      if (factor !== 1 && plan.intensity === 'suave') plan.title = 'Rodaje suave';
+      if (fatigue || events.length) { plan.intensity = 'suave'; plan.title = 'Rodaje suave · recuperación'; plan.details = 'Ritmo cómodo, sin series ni trabajo rápido. Acorta o detén la sesión si aparecen molestias.'; }
+      // Distances, not stale interval instructions, define an increased session.
+      if (progress) plan.details += '\nAjuste automático: conserva la estructura e intensidad anterior; no aumentes también el ritmo o las repeticiones de series.';
+    }
+    if (plan.type === 'gym' && (fatigue || events.length)) {
+      plan.exercises = plan.exercises.map(e => ({ ...e, sets: e.lowerBody || fatigue ? Math.max(1, e.sets - 1) : e.sets, note: e.note + ' Esta semana no aumentes carga y conserva al menos 3 repeticiones en reserva.' }));
+      plan.details += '\nSemana de descarga: menos series, sin llegar al fallo y sin estrenar cargas.';
+    }
+    next.plans[date] = plan;
+  });
+  if (events.length) {
+    const race = events[0];
+    next.plans[race.date] = { type: 'run', title: race.name, distanceKm: race.distanceKm, intensity: 'carrera', details: 'Carrera confirmada en tu calendario. No se asigna un ritmo objetivo automático. Ajusta el esfuerzo a la recuperación y las sensaciones.', source: 'rules', basedOnWeek: source[0], rationale: reason };
+  }
+  next.planningLog = [...(next.planningLog || []), { week: target[0], basedOnWeek: source[0], reason }];
+  return { data: validateData(next), generated: true, reason, week: target[0] };
+}
+
+export function continuePlanning(data, today) {
+  // Only the current or just-finished week can trigger a new week; no cascade.
+  for (const source of [monday(today), addDays(monday(today), -7)]) {
+    const result = prepareNextWeek(data, source);
+    if (result.generated) return result;
+  }
+  return { data, generated: false };
+}

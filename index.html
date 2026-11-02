@@ -17,9 +17,10 @@
       <a href="#hoy" data-view="hoy"><span>◉</span> Hoy</a>
       <a href="#semana" data-view="semana"><span>▦</span> Mi semana</a>
       <a href="#historial" data-view="historial"><span>↗</span> Historial</a>
+      <a href="#perfil" data-view="perfil"><span>◎</span> Mi objetivo</a>
     </nav>
     <div class="sidebar-note"><span class="small-dot"></span> Paso a paso, semana a semana.<p>El progreso también es saber descansar.</p></div>
-    <div class="storage"><strong>Tu espacio personal</strong><p>Datos guardados en este navegador.</p><button id="export" class="text-btn">Descargar copia ↗</button><label class="text-btn import-label">Restaurar copia<input id="import" type="file" accept="application/json" hidden></label></div>
+    <div class="storage"><div id="account-status"></div><button id="export" class="text-btn">Descargar copia ↗</button><label class="text-btn import-label">Restaurar copia<input id="import" type="file" accept="application/json" hidden></label></div>
   </aside>
   <main>
     <header class="topbar"><span>MI CUADERNO DE ENTRENAMIENTO</span><span id="today-label"></span></header>
@@ -27,6 +28,7 @@
     <footer>Hecho para seguir tu propio ritmo.<span>Running + fuerza + recuperación</span></footer>
   </main>
   <dialog id="editor"><form id="session-form"><div id="form-content"></div></form></dialog>
+  <dialog id="account-dialog"></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="app.js"></script>
 </body>
