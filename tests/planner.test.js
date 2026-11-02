@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { initialData, upgradeData, weekDates, gym, planFor } from '../model.js';
+import { initialData, upgradeData, weekDates, gym, planFor, firstWeek, suggestWeek } from '../model.js';
 import { planningReadiness, prepareNextWeek } from '../planner.js';
 function readyWeek(data, start) {
   for (const [i, date] of weekDates(start).entries()) {
@@ -73,4 +73,19 @@ test('La carrera anterior no se convierte en otra carrera la semana siguiente', 
   const result = prepareNextWeek(data, '2026-11-09');
   assert.equal(result.data.plans['2026-11-22'].intensity, 'suave');
   assert.equal(result.data.plans['2026-11-22'].distanceKm, 6);
+});
+test('Conserva propuestas y aprobaciones de la versión publicada en otra sesión', () => {
+  const data = initialData(); data.plans = {}; delete data.profile;
+  const legacyTuesday = {type:'gym',title:'Fuerza completa · énfasis piernas',details:'8 min de calentamiento; prensa 1×12 + 3×10 moderada; plancha 2×45–60 s.'};
+  data.drafts = {'2026-11-02':{week:'2026-11-02',plans:{...structuredClone(firstWeek),'2026-11-03':legacyTuesday},reason:'Mi propuesta guardada'}};
+  const migrated=upgradeData(data);
+  assert.equal(migrated.drafts['2026-11-02'].reason,'Mi propuesta guardada');
+  assert.equal(migrated.plans['2026-11-03'].exercises.length,7);
+  assert.equal(migrated.plans['2026-11-03'].source,'draft');
+  data.plans['2026-11-03']=legacyTuesday;
+  const published=upgradeData(data);
+  assert.equal(published.plans['2026-11-03'].source,undefined);
+  assert.equal(published.plans['2026-11-03'].details,legacyTuesday.details);
+  assert.equal(published.plans['2026-11-03'].exercises.length,7);
+  assert.equal(suggestWeek(migrated,'2026-11-02').plans['2026-11-03'].exercises.length,7);
 });

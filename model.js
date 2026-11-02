@@ -38,12 +38,25 @@ export function correctInitialGym(data){
 export function upgradeData(data){
   const next=structuredClone(correctInitialGym(data));
   if(!next.profile)next.profile=structuredClone(initialProfile);
-  if(next.corrections?.includes('week-2026-11-02'))return next;
-  if(!next.plans[agreedGymDate]&&!reportFor(next,agreedGymDate))next.plans[agreedGymDate]=structuredClone(agreedGym);
-  if(!next.profile)next.profile=structuredClone(initialProfile);
-  for(const [date,p] of Object.entries(proposedWeek))if(!next.plans[date]&&!reportFor(next,date))next.plans[date]=structuredClone(p);
-  if(!next.profile.events.some(e=>e.date==='2026-12-13'))next.profile.events.push(structuredClone(initialProfile.events[2]));
-  next.corrections=[...(next.corrections||[]),'agreed-2026-11-03','week-2026-11-02'];
+  if(next.corrections?.includes('structured-plans-2026-11-02'))return next;
+  const alreadyMigrated=next.corrections?.includes('week-2026-11-02');
+  // Retain drafts and published sessions created by the previous Pages version.
+  const legacyDraft=next.drafts?.['2026-11-02'];
+  if(legacyDraft?.plans)for(const [date,p] of Object.entries(legacyDraft.plans))if(!next.plans[date])next.plans[date]={...structuredClone(p),source:'draft'};
+  if(!alreadyMigrated){
+    if(!next.plans[agreedGymDate]&&!reportFor(next,agreedGymDate))next.plans[agreedGymDate]=structuredClone(agreedGym);
+    for(const [date,p] of Object.entries(proposedWeek))if(!next.plans[date]&&!reportFor(next,date))next.plans[date]=structuredClone(p);
+    if(!next.profile.events.some(e=>e.date==='2026-12-13'))next.profile.events.push(structuredClone(initialProfile.events[2]));
+  }
+  const tuesday=next.plans[agreedGymDate];
+  if(tuesday&&!tuesday.exercises&&tuesday.type==='gym'&&['Fuerza completa · énfasis piernas','Cuerpo completo · énfasis en piernas'].includes(tuesday.title)&&/prensa/i.test(tuesday.details)){
+    tuesday.exercises=structuredClone(agreedGym.exercises);tuesday.sessionInstructions=agreedGym.sessionInstructions;
+  }
+  const thursday=next.plans['2026-11-05'];
+  if(thursday&&thursday.distanceKm==null&&thursday.title==='Rodaje suave · 6–7 km')Object.assign(thursday,{distanceKm:6,maxDistanceKm:7,intensity:'suave'});
+  const sunday=next.plans['2026-11-08'];
+  if(sunday&&sunday.distanceKm==null&&sunday.title==='5K opcional · controlada')Object.assign(sunday,{distanceKm:7,maxDistanceKm:9,intensity:'suave',optionalRace:true});
+  next.corrections=[...(next.corrections||[]),'agreed-2026-11-03','week-2026-11-02','structured-plans-2026-11-02'];
   return next;
 }
 export function gymReference(data,date){
@@ -98,3 +111,6 @@ export function validateData(data){
   }
   return data;
 }
+
+export const firstWeek={...structuredClone(proposedWeek),[agreedGymDate]:structuredClone(agreedGym)};
+export {suggestWeek} from './planner.js';

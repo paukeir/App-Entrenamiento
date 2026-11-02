@@ -1,4 +1,4 @@
-import { addDays, monday, weekDates, planFor, reportFor, validateData } from './model.js';
+import { addDays, monday, weekDates, planFor, reportFor, validateData, firstWeek } from './model.js';
 
 const pending = plan => /por definir|pendiente de plan/i.test(plan.title);
 export function planningReadiness(data, sourceDate) {
@@ -79,4 +79,14 @@ export function continuePlanning(data, today) {
     if (result.generated) return result;
   }
   return { data, generated: false };
+}
+
+// Compatibility with the proposal/approval UI already published in Pages.
+// Unlike the earlier calendar-only generator, missing training data never
+// produces arbitrary distances or a race pace without a validated baseline.
+export function suggestWeek(data,iso){
+ const dates=weekDates(iso),start=dates[0];
+ if(start==='2026-11-02')return {week:start,plans:structuredClone(firstWeek),reason:'Primera semana acordada. La 5K es opcional; falta concretar los ejercicios del viernes.',context:data.profile?.objective||''};
+ const result=prepareNextWeek(data,addDays(start,-7));
+ return {week:start,plans:result.generated?Object.fromEntries(dates.map(d=>[d,result.data.plans[d]])):Object.fromEntries(dates.filter(d=>data.plans[d]).map(d=>[d,data.plans[d]])),reason:result.reason,context:data.profile?.objective||''};
 }
