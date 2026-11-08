@@ -87,6 +87,15 @@ export function continuePlanning(data, today) {
 export function suggestWeek(data,iso){
  const dates=weekDates(iso),start=dates[0];
  if(start==='2026-11-02')return {week:start,plans:structuredClone(firstWeek),reason:'Primera semana acordada. La 5K es opcional; falta concretar los ejercicios del viernes.',context:data.profile?.objective||''};
+ if(start==='2026-11-09')return {week:start,plans:{
+ '2026-11-09':{type:'rest',title:'Descanso',details:'Recuperación después del rodaje y la escalada del domingo.'},
+ '2026-11-10':{type:'run',title:'Rodaje suave + progresivos',distanceKm:5,maxDistanceKm:6,intensity:'suave',details:'5–6 km a ritmo conversacional y 4 progresivos de 15–20 s con recuperación completa. Sin series exigentes.'},
+ '2026-11-11':{type:'rest',title:'Descanso',details:'Descanso habitual; priorizar sueño y recuperación.'},
+ '2026-11-12':{type:'gym',title:'Activación ligera · HYATLON',details:'20–25 min de movilidad y repaso técnico de zancadas, burpees, wall balls y manejo de cargas muy ligeras. Sin llegar al fallo ni provocar agujetas. Si hay fatiga, solo movilidad.',sessionInstructions:'Activación técnica sin fatiga: movilidad, unas pocas repeticiones fáciles de zancadas, burpees y wall balls. No es un entrenamiento de fuerza convencional.'},
+ '2026-11-13':{type:'rest',title:'Descanso previo a la competición',details:'Descanso completo, hidratación, alimentación y sueño.'},
+ '2026-11-14':{type:'run',title:'HYATLON · parejas mixtas',distanceKm:6,intensity:'carrera',details:'Taronja Pop Up HYATLON. Seis segmentos de 1 km de carrera intercalados con remo 1 km, farmer carry 300 m, goblet lunges 100 m, burpee broad jumps 80 m, 25 slam ball step box over y 100 wall balls. Reparto con tu pareja ya acordado. Ajustar esfuerzo para recuperar de cara al domingo.'},
+ '2026-11-15':{type:'run',title:'Carrera 10K · según recuperación',distanceKm:10,intensity:'carrera',details:'10K al día siguiente del HYATLON. No forzar récord personal de 54:14 si hay fatiga, agujetas o molestias. Valorar el estado de las piernas antes de salir.'}
+ },reason:'Semana especial: HYATLON por parejas mixtas el sábado 14 y carrera 10K el domingo 15. Se prioriza llegar fresco y evitar fuerza pesada.',context:data.profile?.objective||''};
  const result=prepareNextWeek(data,addDays(start,-7));
  return {week:start,plans:result.generated?Object.fromEntries(dates.map(d=>[d,result.data.plans[d]])):Object.fromEntries(dates.filter(d=>data.plans[d]).map(d=>[d,data.plans[d]])),reason:result.reason,context:data.profile?.objective||''};
 }
