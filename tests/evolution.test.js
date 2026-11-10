@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {initialData,upgradeData,validateData} from '../model.js';
+import {continuePlanning} from '../planner.js';
 import {applyPlanUpdates,planRevision} from '../plan-updates.js';
 import {progressExercise,refreshFutureLoads} from '../progression.js';
 import {runningRows,strengthSeries,predictions,seconds,weeklyDistance} from '../evolution.js';
@@ -46,4 +47,9 @@ test('Recalcular una propuesta no compone subidas ni cambia sesiones manuales',(
  const d={profile:{events:[]},reports:[gymReport],plans:{'2026-11-11':{source:'rules',type:'gym',exercises:[exercise]},'2026-11-12':{source:'manual',type:'gym',exercises:[exercise]}}};
  const next=refreshFutureLoads(d,'2026-11-10');assert.equal(next.plans['2026-11-11'].exercises[0].weight,35);assert.equal(next.plans['2026-11-12'].exercises[0].weight,30);
  assert.equal(refreshFutureLoads(next,'2026-11-10').plans['2026-11-11'].exercises[0].weight,35);
+});
+
+test('Desactivar la continuidad conserva también los pesos de las propuestas existentes',()=>{
+ const d={profile:{automaticPlanning:false,events:[]},reports:[gymReport],plans:{'2026-11-11':{source:'rules',type:'gym',exercises:[exercise]}}};
+ assert.equal(continuePlanning(d,'2026-11-10').data.plans['2026-11-11'].exercises[0].weight,30);
 });

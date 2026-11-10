@@ -11,7 +11,7 @@ export function progressExercise(exercise,reports,date,{deload=false,nearRace=fa
  result.weight=baseline;result.maxWeight=null;
  result.progressionReason='Referencia actualizada con la carga real de la sesión del '+report.date+'.';
  const target=result.maxReps??result.reps;
- const canIncrease=!deload&&!nearRace&&report.status==='completed'&&report.feeling!=='Molestias'&&report.feeling!=='Cansado'&&report.rpe!=null&&report.rpe<=7&&performed.actualRir>=3&&performed.actualRir!=null&&target>0&&sets.length>=result.sets&&sets.every(s=>s.reps>=target)&&result.incrementKg>0&&result.incrementKg<=baseline*0.1;
+ const canIncrease=!deload&&!nearRace&&report.status==='completed'&&['Bien','Muy bien','Normal'].includes(report.feeling)&&report.rpe!=null&&report.rpe<=7&&performed.actualRir>=3&&performed.actualRir!=null&&target>0&&sets.length>=result.sets&&sets.every(s=>s.reps>=target)&&result.incrementKg>0&&result.incrementKg<=baseline*0.1;
  if(canIncrease){result.weight=Math.round((baseline+result.incrementKg)*100)/100;result.progressionReason+=' Todas las series alcanzaron el objetivo, con ≥3 repeticiones en reserva: subida de '+result.incrementKg+' kg según el incremento configurado.';}
  else result.progressionReason+=' Se mantiene la carga; una subida necesita repeticiones completas, margen registrado e incremento disponible configurado.';
  return result;

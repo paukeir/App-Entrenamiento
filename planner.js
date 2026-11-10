@@ -81,6 +81,7 @@ export function prepareNextWeek(data, sourceDate) {
 }
 
 export function continuePlanning(data, today) {
+  if(!data.profile?.automaticPlanning)return {data,generated:false};
   data=refreshFutureLoads(data,today);
   // Only the current or just-finished week can trigger a new week; no cascade.
   for (const source of [monday(today), addDays(monday(today), -7)]) {
