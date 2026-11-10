@@ -4,7 +4,7 @@ const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'
 try {
 const docs=new Map(),errors=[],requests=[];
 async function setup(viewport){
- const context=await browser.newContext({viewport});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+ const context=await browser.newContext({viewport});const page=await context.newPage();await page.clock.install({time:new Date('2026-11-02T11:00:00Z')});page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/app-config.js*',r=>r.fulfill({contentType:'text/javascript',body:"export const cloudConfig={url:'https://test.supabase.co',publishableKey:'sb_publishable_test'};"}));
  await page.route('https://test.supabase.co/**',async route=>{
   const req=route.request(),url=new URL(req.url()),headers={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET,POST,PATCH,OPTIONS'};

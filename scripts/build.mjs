@@ -10,7 +10,7 @@ const config = {
 if ((config.url || config.publishableKey) && !validConfig(config)) throw Error('La configuración pública de Supabase no es válida. No utilices claves secretas o service_role.');
 await rm('_site', { recursive: true, force: true });
 await mkdir('_site', { recursive: true });
-for (const file of ['index.html', 'style.css', 'app.js', 'model.js', 'training-seed.js', 'planner.js', 'sync.js', 'account.js', 'exercise-media.js', 'apple-touch-icon.png', 'assets']) {
+for (const file of ['index.html', 'style.css', 'app.js', 'model.js', 'training-seed.js', 'plan-updates.js', 'progression.js', 'evolution.js', 'planner.js', 'sync.js', 'account.js', 'exercise-media.js', 'apple-touch-icon.png', 'assets']) {
   await cp(file, '_site/' + file, { recursive: true });
 }
 await writeFile('_site/app-config.js', 'export const cloudConfig = ' + JSON.stringify(config, null, 2) + ';\n');

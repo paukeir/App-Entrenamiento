@@ -1,3 +1,5 @@
+import {progressExercise,refreshFutureLoads} from './progression.js';
+import {revisedWeek} from './plan-updates.js';
 import { addDays, monday, weekDates, planFor, reportFor, validateData, firstWeek } from './model.js';
 
 const pending = plan => /por definir|pendiente de plan/i.test(plan.title);
@@ -30,23 +32,28 @@ export function prepareNextWeek(data, sourceDate) {
   const source = weekDates(sourceDate), target = weekDates(addDays(source[0], 7));
   if (target.some(date => data.plans[date] || reportFor(data, date))) return { data, generated: false, reason: 'La siguiente semana ya tiene planes o reportes. Se conservan tus cambios.' };
   const reports = data.reports.filter(r => source.includes(r.date));
-  const fatigue = reports.some(r => r.feeling === 'Cansado' || r.rpe >= 8 || r.status !== 'completed');
+  const afterRace=source.some(date=>planFor(data,date).intensity==='carrera'&&reportFor(data,date)?.status==='completed');
+  const fatigue = afterRace || reports.some(r => r.feeling === 'Cansado' || r.rpe >= 8 || r.status !== 'completed');
   const events = (data.profile.events || []).filter(e => e.confirmed && e.date >= target[0] && e.date <= target[6]);
   if (events.length > 1 || events.some(e => e.date !== target[6])) return { data, generated: false, reason: 'La distribución de carreras requiere una revisión: el automatismo actual contempla una carrera en domingo.' };
   const nearbyRace = (data.profile.events || []).some(e => e.confirmed && e.date >= target[0] && e.date <= addDays(target[6], 7));
   const progress = !fatigue && !nearbyRace && source.filter(d => planFor(data, d).type === 'run').every(d => planFor(data, d).intensity === 'suave') && goodWeek(data, source[0]) && goodWeek(data, addDays(source[0], -7));
   const factor = events.length ? 0.65 : fatigue ? 0.8 : progress ? 1.05 : 1;
-  const reason = events.length ? 'Semana de carrera: se reduce un 35% el volumen de los rodajes previos y se evita intensidad adicional.' : fatigue ? 'Fatiga, esfuerzo alto o sesión incompleta: volumen de running reducido un 20%.' : progress ? 'Dos semanas completas con sensaciones favorables y esfuerzo ≤6/10: aumento máximo del 5% en distancia, manteniendo el esfuerzo.' : 'Se mantiene la carga: todavía no hay dos semanas completas de datos favorables para subirla.';
+  const reason = events.length ? 'Semana de carrera: se reduce un 35% el volumen de los rodajes previos y se evita intensidad adicional.' : fatigue ? (afterRace?'Semana posterior a competición: volumen de running reducido un 20% y fuerza de recuperación.':'Fatiga, esfuerzo alto o sesión incompleta: volumen de running reducido un 20%.') : progress ? 'Dos semanas completas con sensaciones favorables y esfuerzo ≤6/10: aumento máximo del 5% en distancia, manteniendo el esfuerzo.' : 'Se mantiene la carga: todavía no hay dos semanas completas de datos favorables para subirla.';
   const next = structuredClone(data);
   const easyReference = source.map(date => planFor(data, date)).filter(p => p.type === 'run' && p.intensity !== 'carrera' && p.distanceKm > 0);
   if (source.some(date => planFor(data, date).intensity === 'carrera') && !easyReference.length) return { data, generated: false, reason: 'Falta un rodaje de referencia para volver a entrenar después de la carrera.' };
   target.forEach((date, i) => {
     const previous = planFor(data, source[i]);
-    const plan = { ...structuredClone(previous), source: 'rules', basedOnWeek: source[0], rationale: reason };
+    let plan = { ...structuredClone(previous), source: 'rules', basedOnWeek: source[0], rationale: reason };
+    if(previous.type==='gym'&&previous.sport==='hybrid'){
+      const reference=Object.entries(data.plans).filter(([d,p])=>d<source[i]&&p.type==='gym'&&p.sport!=='hybrid'&&p.exercises?.length).sort(([a],[b])=>b.localeCompare(a))[0]?.[1];
+      if(reference)plan={...structuredClone(reference),source:'rules',basedOnWeek:source[0],rationale:reason,sport:'strength',title:'Fuerza · recuperación',details:reference.sessionInstructions||reference.details};
+    }
     delete plan.optionalRace;
     if (previous.sessionInstructions) plan.details = previous.sessionInstructions;
     if (previous.optionalRace || previous.intensity === 'carrera') {
-      plan.title = 'Rodaje suave · recuperación'; plan.intensity = 'suave';
+      plan.title = 'Rodaje suave · recuperación'; plan.intensity = 'suave'; plan.sport='run';
       if (previous.intensity === 'carrera') { plan.distanceKm = Math.min(...easyReference.map(p => p.distanceKm)); plan.maxDistanceKm = null; }
       plan.details = 'Rodaje cómodo. Se usa una distancia de rodaje previa como referencia; la carrera anterior no se repite automáticamente.';
     }
@@ -58,6 +65,7 @@ export function prepareNextWeek(data, sourceDate) {
       // Distances, not stale interval instructions, define an increased session.
       if (progress) plan.details += '\nAjuste automático: conserva la estructura e intensidad anterior; no aumentes también el ritmo o las repeticiones de series.';
     }
+    if(plan.type==='gym'&&plan.exercises)plan.exercises=plan.exercises.map(e=>progressExercise(e,data.reports,date,{deload:fatigue,nearRace:nearbyRace}));
     if (plan.type === 'gym' && (fatigue || events.length)) {
       plan.exercises = plan.exercises.map(e => ({ ...e, sets: e.lowerBody || fatigue ? Math.max(1, e.sets - 1) : e.sets, note: e.note + ' Esta semana no aumentes carga y conserva al menos 3 repeticiones en reserva.' }));
       plan.details += '\nSemana de descarga: menos series, sin llegar al fallo y sin estrenar cargas.';
@@ -73,6 +81,7 @@ export function prepareNextWeek(data, sourceDate) {
 }
 
 export function continuePlanning(data, today) {
+  data=refreshFutureLoads(data,today);
   // Only the current or just-finished week can trigger a new week; no cascade.
   for (const source of [monday(today), addDays(monday(today), -7)]) {
     const result = prepareNextWeek(data, source);
@@ -87,15 +96,7 @@ export function continuePlanning(data, today) {
 export function suggestWeek(data,iso){
  const dates=weekDates(iso),start=dates[0];
  if(start==='2026-11-02')return {week:start,plans:structuredClone(firstWeek),reason:'Primera semana acordada. La 5K es opcional; falta concretar los ejercicios del viernes.',context:data.profile?.objective||''};
- if(start==='2026-11-09')return {week:start,plans:{
- '2026-11-09':{type:'rest',title:'Descanso',details:'Recuperación después del rodaje y la escalada del domingo.'},
- '2026-11-10':{type:'gym',title:'HYATLON · técnica, cargas y transición',details:'45–55 min, esfuerzo 4–5/10, sin fallo. Calentamiento: 6–8 min de trote suave + movilidad (10 min en total). Remo: 500 m (250 m suaves + 250 m controlados). Farmer carry: 3×30 m, empezar ligero y progresar; probar brevemente 22,5 kg por mano solo si la técnica y el agarre son seguros. Goblet lunges: 2×8 pasos, primera tanda ligera, segunda moderada; si es seguro, probar pocas repeticiones con 20 kg sin llegar al límite. Transición: 800 m de carrera suave justo después de las zancadas. Wall balls: 2×8 repeticiones técnicas. Vuelta a la calma: 5 min caminando y movilidad. Descansar 60–90 s o más si hace falta; no acumular fatiga.',sessionInstructions:'Primera prueba de las cargas oficiales, NO simulacro completo. No completar distancias oficiales ni hacer burpee broad jumps o box overs en volumen significativo. Detener la progresión de carga si se pierde técnica. Terminar con margen amplio para HYATLON sábado y 10K domingo.'},
- '2026-11-11':{type:'rest',title:'Descanso',details:'Descanso habitual; priorizar sueño y recuperación.'},
- '2026-11-12':{type:'gym',title:'Activación ligera · HYATLON',details:'20–25 min de movilidad y repaso técnico de zancadas, burpees, wall balls y manejo de cargas muy ligeras. Sin llegar al fallo ni provocar agujetas. Si hay fatiga, solo movilidad.',sessionInstructions:'Activación técnica sin fatiga: movilidad, unas pocas repeticiones fáciles de zancadas, burpees y wall balls. No es un entrenamiento de fuerza convencional.'},
- '2026-11-13':{type:'rest',title:'Descanso previo a la competición',details:'Descanso completo, hidratación, alimentación y sueño.'},
- '2026-11-14':{type:'run',title:'HYATLON · parejas mixtas',distanceKm:6,intensity:'carrera',details:'Taronja Pop Up HYATLON. Seis segmentos de 1 km de carrera intercalados con remo 1 km, farmer carry 300 m, goblet lunges 100 m, burpee broad jumps 80 m, 25 slam ball step box over y 100 wall balls. Reparto con tu pareja ya acordado. Ajustar esfuerzo para recuperar de cara al domingo.'},
- '2026-11-15':{type:'run',title:'Carrera 10K · según recuperación',distanceKm:10,intensity:'carrera',details:'10K al día siguiente del HYATLON. No forzar récord personal de 54:14 si hay fatiga, agujetas o molestias. Valorar el estado de las piernas antes de salir.'}
- },reason:'Semana especial: HYATLON por parejas mixtas el sábado 14 y carrera 10K el domingo 15. Se prioriza llegar fresco y evitar fuerza pesada.',context:data.profile?.objective||''};
+ if(start==='2026-11-09')return {week:start,plans:structuredClone(revisedWeek),reason:'Semana actualizada: familiarización HYATLON, activación suave el jueves y competiciones sábado y domingo.',context:data.profile?.objective||''};
  const result=prepareNextWeek(data,addDays(start,-7));
  return {week:start,plans:result.generated?Object.fromEntries(dates.map(d=>[d,result.data.plans[d]])):Object.fromEntries(dates.filter(d=>data.plans[d]).map(d=>[d,data.plans[d]])),reason:result.reason,context:data.profile?.objective||''};
 }

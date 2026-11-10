@@ -12,6 +12,7 @@ const library = [
   [/gemelos/i, 'Standing_Calf_Raises', 'La foto muestra elevaciones de gemelos en máquina. Tu plan permite hacerlas con peso corporal o carga ligera; no exige esta máquina.'],
 ];
 export function exerciseMedia(name) {
+  if(/erg[oó]metro/i.test(name))return null;
   const entry = library.find(([pattern]) => pattern.test(name));
   if (!entry) return null;
   const [, id, caption] = entry;

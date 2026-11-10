@@ -6,7 +6,7 @@
     "start": "python3 -m http.server 5173 --bind 0.0.0.0",
     "test": "node --test tests/*.test.js",
     "build": "node scripts/build.mjs",
-    "test:browser": "node tests/browser/workflows.mjs && node tests/browser/sync.mjs"
+    "test:browser": "node tests/browser/workflows.mjs && node tests/browser/sync.mjs && node tests/browser/evolution.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.58.2"

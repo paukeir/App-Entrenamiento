@@ -60,19 +60,20 @@ test('Fatiga reduce volumen; las molestias paran la generación', () => {
   data.reports.find(r => r.date === '2026-11-19').feeling = 'Molestias';
   assert.equal(prepareNextWeek(data, '2026-11-16').generated, false);
 });
-test('Semana de la 10K confirmada descarga los rodajes y añade la carrera real', () => {
-  const data = readyWeek(upgradeData(initialData()), '2026-11-02');
-  const result = prepareNextWeek(data, '2026-11-02'); assert.equal(result.generated, true);
-  assert.equal(result.data.plans['2026-11-12'].distanceKm, 3.9);
-  assert.equal(result.data.plans['2026-11-15'].distanceKm, 10);
-  assert.equal(result.data.plans['2026-11-15'].intensity, 'carrera');
+test('Semana de una 10K confirmada descarga los rodajes y añade la carrera real', () => {
+  const data = readyWeek(upgradeData(initialData()), '2027-01-04');
+  data.profile.events=[{date:'2027-01-17',name:'10K',distanceKm:10,confirmed:true}];
+  const result = prepareNextWeek(data, '2027-01-04'); assert.equal(result.generated, true);
+  assert.equal(result.data.plans['2027-01-14'].distanceKm, 3.9);
+  assert.equal(result.data.plans['2027-01-17'].distanceKm, 10);
+  assert.equal(result.data.plans['2027-01-17'].intensity, 'carrera');
 });
 test('La carrera anterior no se convierte en otra carrera la semana siguiente', () => {
   const data = readyWeek(upgradeData(initialData()), '2026-11-09');
   data.plans['2026-11-15'].intensity = 'carrera'; data.plans['2026-11-15'].title = '10K';
   const result = prepareNextWeek(data, '2026-11-09');
   assert.equal(result.data.plans['2026-11-22'].intensity, 'suave');
-  assert.equal(result.data.plans['2026-11-22'].distanceKm, 6);
+  assert.equal(result.data.plans['2026-11-22'].distanceKm, 4.8);
 });
 test('Conserva propuestas y aprobaciones de la versión publicada en otra sesión', () => {
   const data = initialData(); data.plans = {}; delete data.profile;
